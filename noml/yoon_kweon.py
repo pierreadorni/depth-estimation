@@ -187,6 +187,8 @@ def our_diss(i_ref: np.ndarray, i_tgt: np.ndarray, i_ref_lab: np.ndarray, i_tgt_
     :param block_size: size of the block, defaults to 35
     :return: disparity map
     """
+    i_ref = color.rgb2gray(i_ref)
+    i_tgt = color.rgb2gray(i_tgt)
     disp_map = np.zeros((i_ref_lab.shape[0], i_ref_lab.shape[1]))
     for j in tqdm(range(i_ref_lab.shape[0])):  # for each line
         for i in range(i_ref_lab.shape[1]):  # for each block in the line
@@ -197,22 +199,29 @@ def our_diss(i_ref: np.ndarray, i_tgt: np.ndarray, i_ref_lab: np.ndarray, i_tgt_
             disps = np.zeros(max_disp)
 
             # compute weights for each pixel in the ref block
-            weights = np.zeros((block_size, block_size))
-            for dj in range(block_size):
-                for di in range(block_size):
-                    # weight is the color differece in LAB between the pixel and the center of the block,
-                    # and the euclidean distance of the coordinates to the center of the block
-                    weights[dj, di] = np.exp(-np.linalg.norm(ref_block_lab[dj, di] - ref_block_lab[block_size // 2, block_size // 2]) ** 2)
-                    weights[dj, di] *= np.exp(-np.linalg.norm(np.array([dj*1.0, di]) - np.array([block_size // 2, block_size // 2])) ** 2)
-            weights /= np.sum(weights)
+            # colorWeights = np.zeros((block_size, block_size))
+            # distWeights = np.zeros((block_size, block_size))
+            # for dj in range(block_size):
+            #     for di in range(block_size):
+            #         # weight is the color differece in LAB between the pixel and the center of the block,
+            #         # and the euclidean distance of the coordinates to the center of the block
+            #         colorWeights[dj, di] = -np.linalg.norm(
+            #             ref_block_lab[dj, di] - ref_block_lab[block_size // 2, block_size // 2]) ** 2
+            #         distWeights[dj, di] = -np.linalg.norm(
+            #             np.array([dj * 1.0, di]) - np.array([block_size // 2, block_size // 2]))
+            # # normalize weights
+            # colorWeights = (colorWeights - colorWeights.min()) / (colorWeights.max() - colorWeights.min())
+            # distWeights = (distWeights - distWeights.min()) / (distWeights.max() - distWeights.min())
+            # weights = colorWeights * distWeights
+
+            weights = np.ones((block_size, block_size))
 
             for d in range(max_disp):
                 tgt_block = i_tgt[j - block_size // 2:j + block_size // 2 + 1, i - block_size // 2 - d:i + block_size // 2 + 1 - d]
-                tgt_block_lab = i_tgt_lab[j - block_size // 2:j + block_size // 2 + 1, i - block_size // 2 - d:i + block_size // 2 + 1 - d]
                 if tgt_block.shape[:2] != (block_size, block_size):
                     continue
 
                 # compute the dissimilarity between the ref block and the tgt block taking into account the weights
-                disps[d] = np.sum(weights * np.linalg.norm(ref_block_lab - tgt_block_lab, axis=2))
-            disp_map[j:j + block_size, i:i + block_size] = np.argmin(disps)
+                disps[d] = np.sum(weights*np.abs(ref_block - tgt_block))
+            disp_map[j, i] = np.argmin(disps)
     return disp_map
